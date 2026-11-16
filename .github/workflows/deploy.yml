@@ -1,0 +1,40 @@
+name: Publish billing pages
+
+# Serves the customer approval page at billing.citeamotors.com.
+# The page itself lives in Supabase storage (bucket "deploy", folder portal/).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download pages
+        run: |
+          mkdir -p site
+          base="https://asobgojrhatjpazgwnjp.supabase.co/storage/v1/object/public/deploy/portal"
+          curl -fsSL "$base/approve.html?nocache=$GITHUB_RUN_ID" -o site/approve.html
+          grep -q "Citea" site/approve.html
+          cp site/approve.html site/index.html
+          echo "billing.citeamotors.com" > site/CNAME
+          sha256sum site/*
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

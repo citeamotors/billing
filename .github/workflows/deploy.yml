@@ -1,11 +1,14 @@
 name: Publish billing pages
 
 # Serves the customer approval page at billing.citeamotors.com.
-# The page itself lives in Supabase storage (bucket "deploy", folder portal/).
+# The page is copied from the live team portal site (teams.citeamotors.com), which deploys from citeamotors/portal.
+# Runs on every push, by hand from the Actions tab, and every hour so it stays in step with the portal.
 on:
   workflow_dispatch:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 * * * *"
 
 permissions:
   contents: read
@@ -26,9 +29,10 @@ jobs:
       - name: Download pages
         run: |
           mkdir -p site
-          base="https://asobgojrhatjpazgwnjp.supabase.co/storage/v1/object/public/deploy/portal"
+          base="https://teams.citeamotors.com"
           curl -fsSL "$base/approve.html?nocache=$GITHUB_RUN_ID" -o site/approve.html
           grep -q "Citea" site/approve.html
+          for f in favicon.ico favicon.svg apple-touch-icon.png; do curl -fsSL "$base/$f?nocache=$GITHUB_RUN_ID" -o "site/$f"; done
           cp site/approve.html site/index.html
           echo "billing.citeamotors.com" > site/CNAME
           sha256sum site/*

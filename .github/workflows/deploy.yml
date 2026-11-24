@@ -36,9 +36,27 @@ jobs:
           cp site/approve.html site/index.html
           echo "billing.citeamotors.com" > site/CNAME
           sha256sum site/*
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      # only publish when something actually changed (the hourly check used to republish every time)
+      - name: Compare with the live billing site
+        id: diff
+        run: |
+          changed=no
+          for f in approve.html favicon.ico favicon.svg apple-touch-icon.png; do
+            live=$(curl -fsSL "https://billing.citeamotors.com/$f?nocache=$GITHUB_RUN_ID" | sha256sum | cut -d' ' -f1 || true)
+            new=$(sha256sum "site/$f" | cut -d' ' -f1)
+            [ "$live" = "$new" ] || { echo "$f changed"; changed=yes; }
+          done
+          [ "${{ github.event_name }}" = "schedule" ] || changed=yes
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+      - if: steps.diff.outputs.changed == 'yes'
+        uses: actions/configure-pages@v5
+      - if: steps.diff.outputs.changed == 'yes'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site
-      - id: deployment
+      # give GitHub a moment to register the upload (avoids "No artifacts named github-pages")
+      - if: steps.diff.outputs.changed == 'yes'
+        run: sleep 20
+      - if: steps.diff.outputs.changed == 'yes'
+        id: deployment
         uses: actions/deploy-pages@v4
